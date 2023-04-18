@@ -53,38 +53,28 @@ def main():
     args = parser.parse_args()
 
     if args.service_account_json:
-        client = iot_v1.DeviceManagerClient.from_service_account_json(args.service_account_json.name)
+        client = iot_v1.DeviceManagerClient.from_service_account_json(
+            args.service_account_json.name
+        )
     else:
         client = iot_v1.DeviceManagerClient()
     registry_path = client.registry_path(args.project, args.region, args.registry)
 
     fields = gp_field_mask.FieldMask(
-        paths=[
-            "id",
-            "name",
-            "num_id",
-            "credentials",
-            "blocked",
-            "config"
-        ]
+        paths=["id", "name", "num_id", "credentials", "blocked", "config"]
     )
 
     devices = list(
         client.list_devices(request={"parent": registry_path, "field_mask": fields})
     )
-    for device in devices:
-        print(device.config)
 
-    print(
-        json.dumps([format_device(device) for device in devices], indent=2)
-    )
+    print(json.dumps([format_device(args, device) for device in devices], indent=2))
 
 
-def format_device(device):
+def format_device(args, device):
     return {
-        "id": device.id,
-        "name": device.name,
-        "num_id": device.num_id,
+        "config_topics": format_config_topics(args, device),
+        "client_ids": format_ids(args, device),
         "credentials": format_creds(device.credentials),
         "blocked": device.blocked,
         "config": format_config(device.config),
@@ -95,17 +85,39 @@ def format_creds(creds):
     return [
         {
             "public_key": {
-                "format": str(cred.public_key.format),
-                "key": cred.public_key.key
+                "format": format_public_key_format(cred.public_key.format),
+                "key": cred.public_key.key,
             },
-            "expiration_time": int(cred.expiration_time.timestamp())
+            "expiration_time": int(cred.expiration_time.timestamp()),
         }
         for cred in creds
     ]
 
 
+def format_public_key_format(format):
+    return str(format).split(".")[-1]
+
+
 def format_config(config):
     return base64.b64encode(config.binary_data).decode("utf-8")
+
+
+def format_ids(args, device):
+    return [format_id(args, device.id), format_id(args, device.num_id)]
+
+
+def format_id(args, id):
+    return (
+        f"projects/{args.project}/locations/{args.region}/"
+        + f"registries/{args.registry}/devices/{id}"
+    )
+
+
+def format_config_topics(args, device):
+    return [
+        f"/devices/{device.id}/config",
+        f"/devices/{device.num_id}/config"
+    ]
 
 
 if __name__ == "__main__":
