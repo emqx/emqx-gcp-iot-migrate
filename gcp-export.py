@@ -68,13 +68,18 @@ def main():
         client.list_devices(request={"parent": registry_path, "field_mask": fields})
     )
 
-    print(json.dumps([format_device(args, device) for device in devices], indent=2))
+    print(
+        json.dumps(
+            [format_device(args, device) for device in devices if not device.blocked],
+            indent=2,
+        )
+    )
 
 
 def format_device(args, device):
     return {
-        "config_topics": format_config_topics(args, device),
-        "client_ids": format_ids(args, device),
+        "registry": [args.project, args.region, args.registry],
+        "device_ids": format_device_ids(device),
         "credentials": format_creds(device.credentials),
         "blocked": device.blocked,
         "config": format_config(device.config),
@@ -102,22 +107,8 @@ def format_config(config):
     return base64.b64encode(config.binary_data).decode("utf-8")
 
 
-def format_ids(args, device):
-    return [format_id(args, device.id), format_id(args, device.num_id)]
-
-
-def format_id(args, id):
-    return (
-        f"projects/{args.project}/locations/{args.region}/"
-        + f"registries/{args.registry}/devices/{id}"
-    )
-
-
-def format_config_topics(args, device):
-    return [
-        f"/devices/{device.id}/config",
-        f"/devices/{device.num_id}/config"
-    ]
+def format_device_ids(device):
+    return [device.id, device.num_id]
 
 
 if __name__ == "__main__":
