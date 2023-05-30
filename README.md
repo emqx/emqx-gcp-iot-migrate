@@ -151,19 +151,27 @@ docker run -d --name emqx -p 8883:8883 -p 18083:18083 emqx/emqx:4.4.18
 
 8883 is the MQTT port (over TLS), 18083 is the HTTP API port.
 
+### Enabling the GCP Module
+
+```bash
+curl -s -u 'admin:public' -X POST 'http://127.0.0.1:18083/api/v4/modules/' -H "Content-Type: application/json"  --data-raw '{"type": "gcp_device", "config": {}}'
+```
+
+The GCP compatibility module can also be enabled via the EMQX dashboard.
+
 ### Importing Data into EMQX
 
 To import data into EMQX, we use the REST API.
 
 ```bash
-curl -s -v -u 'admin:public' -X POST 'http://127.0.0.1:18083/api/v4/gcp_device/import' --data @gcp-data.json
+curl -s -v -u 'admin:public' -X POST 'http://127.0.0.1:18083/api/v4/gcp_devices' --data @gcp-data.json
 ...
-{"data":{"imported":7,"errors":0},"code":0}
+{"data":{"imported":14,"errors":0},"code":0}
 ```
 
 `admin:public` is the default username and password for EMQX.
 
-We see that 7 devices were imported.
+We see that 14 devices were imported.
 
 ### Testing the Migration
 
@@ -188,61 +196,97 @@ This is just the same as before, but now we are using EMQX instead of Google Clo
 
 EMQX provides some additional API calls to manage EMQX data using "device" terminology.
 
-### Config management
+### Individual Device Configuration Management
 
-To get the config for the device `c2-ec-x509`:
+To get the configuration for the device `c2-ec-x509`:
 ```bash
->curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_device/c2-ec-x509/config'
-{"data":{"config":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="},"code":0}
+>curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_devices/c2-ec-x509' | jq
+{
+  "data": {
+    "registry": "my-registry",
+    "project": "iot-export",
+    "location": "europe-west1",
+    "keys": [
+      {
+        "key_type": "ES256_X509_PEM",
+        "key": "...",
+        "expires_at": 0
+      }
+    ],
+    "deviceid": "c2-ec-x509",
+    "created_at": 1685477382,
+    "config": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+  },
+  "code": 0
+}
 ```
 
-To update the config for the device `c2-ec-x509`:
+To update the configuration for the device `c2-ec-x509` (we saved the configuration to a file `c2-ec-x509.json` for convenience and changed the `config` field):
 ```bash
->curl -s -u 'admin:public' -X PUT 'http://127.0.0.1:18083/api/v4/gcp_device/c2-ec-x509/config' --data-raw '{"config": "bmV3Y29uZmlnCg=="}'
+>cat c2-ec-x509.json
+{
+    "registry": "my-registry",
+    "project": "iot-export",
+    "location": "europe-west1",
+    "keys": [
+      {
+        "key_type": "ES256_X509_PEM",
+        "key": "...",
+        "expires_at": 0
+      }
+    ],
+    "config": "bmV3Y29uZmlnCg=="
+}
+
+>curl -s -u 'admin:public' -X PUT 'http://127.0.0.1:18083/api/v4/gcp_devices/c2-ec-x509' -H "Content-Type: application/json" -d @c2-ec-x509.json
 {"data":{},"code":0}
 ```
 
-### Credential management
-
-To list individual device credentials:
+To delete the configuration for the device `c2-ec-x509`:
 ```bash
->curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_device/keys?project=iot-export&location=europe-west1&registry=my-registry&deviceid=c2-ec-x509'
+>curl -s -u 'admin:public' -X DELETE 'http://127.0.0.1:18083/api/v4/gcp_devices/c2-ec-x509'
+{"data":{},"code":0}
+>curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_devices/c2-ec-x509' | jq
+{
+  "message": "device not found"
+}
 ```
 
-To list all credentials:
+### Listing Devices
+
+To list all devices:
 ```bash
->curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_device/keys' | jq
+>curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_devices' | jq
 {
   "meta": {
     "page": 1,
     "limit": 10000,
     "hasnext": false,
-    "count": 42
+    "count": 13
   },
   "data": [
     {
-      "key_type": "RSA_X509_PEM",
-      "key": "...",
-      "id": [
-        "projects/iot-export/locations/europe-west1/registries/my-registry/devices/2820826361193805",
-        "AAX6FVqqCxr0QgAACzMAEw=="
+      "registry": "my-registry",
+      "project": "iot-export",
+      "location": "europe-west1",
+      "keys": [
+        {
+          "key_type": "RSA_X509_PEM",
+          "key": "...",
+          "expires_at": 0
+        }
       ],
-      "extra": {},
-      "expires_at": 0,
-      "created_at": 1682344505
+      "deviceid": "2820826361193805",
+      "created_at": 1685477382,
+      "config": ""
     },
 ...
 ```
 
-Both queries allow pagination: `_limit` and `_page` parameters.
-
-To add and delete individual credentials:
+The query allows pagination: `_limit` and `_page` parameters:
 ```bash
-curl -s -u 'admin:public' -X POST 'http://127.0.0.1:18083/api/v4/gcp_device/keys?project=iot-export&location=europe-west1&registry=my-registry&deviceid=D1' --data-raw '{"key": "-----BEGIN PUBLIC KEY-----\n...", "key_type":"RSA_PEM"}'  | jq
-curl -s -u 'admin:public' -X DELETE 'http://127.0.0.1:18083/api/v4/gcp_device/keys?project=iot-export&location=europe-west1&registry=my-registry&deviceid=D1&tag=AAX6Fae%2BMVf0QAAAC1MAAA%3D%3D'
+>curl -s -u 'admin:public' -X GET 'http://127.0.0.1:18083/api/v4/gcp_devices?_page=2&_limit=2' | jq
 ```
-
-Note that the `tag` parameter is required for deletion. This is an auto-generated tag that is assigned to the key when it is created. It can be found in the `id` field of the key in the listing API result.
 
 ## Limitations
 

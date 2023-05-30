@@ -70,17 +70,24 @@ def main():
 
     print(
         json.dumps(
-            [format_device(args, device) for device in devices if not device.blocked],
+            [
+                format_device(args, device_id, device)
+                for device in devices
+                if not device.blocked
+                for device_id in format_device_ids(device)
+            ],
             indent=2,
         )
     )
 
 
-def format_device(args, device):
+def format_device(args, device_id, device):
     return {
-        "registry": [args.project, args.region, args.registry],
-        "device_ids": format_device_ids(device),
-        "credentials": format_creds(device.credentials),
+        "deviceid": device_id,
+        "project": args.project,
+        "location": args.region,
+        "registry": args.registry,
+        "keys": format_creds(device.credentials),
         "blocked": device.blocked,
         "config": format_config(device.config),
     }
@@ -89,11 +96,9 @@ def format_device(args, device):
 def format_creds(creds):
     return [
         {
-            "public_key": {
-                "format": format_public_key_format(cred.public_key.format),
-                "key": cred.public_key.key,
-            },
-            "expiration_time": int(cred.expiration_time.timestamp()),
+            "key": cred.public_key.key,
+            "key_type": format_public_key_format(cred.public_key.format),
+            "expires_at": int(cred.expiration_time.timestamp()),
         }
         for cred in creds
     ]
@@ -108,7 +113,7 @@ def format_config(config):
 
 
 def format_device_ids(device):
-    return [device.id, device.num_id]
+    return [device.id, str(device.num_id)]
 
 
 if __name__ == "__main__":
